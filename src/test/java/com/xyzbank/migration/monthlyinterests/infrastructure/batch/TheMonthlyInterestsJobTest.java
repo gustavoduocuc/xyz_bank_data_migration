@@ -17,6 +17,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.TestPropertySource;
 
+import java.util.Objects;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBatchTest
@@ -24,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestPropertySource(properties = {
         "spring.batch.job.enabled=false",
         "spring.main.allow-bean-definition-overriding=true",
-        "migration.data.monthly-interests=file:data/semana_1/intereses.csv"
+        "migration.data.monthly-interests=file:data/semana_2/intereses.csv"
 })
 class TheMonthlyInterestsJobTest {
 
@@ -45,7 +47,7 @@ class TheMonthlyInterestsJobTest {
 
     @Test
     void appliesInterestsAndOmitsInvalidAccounts() throws Exception {
-        jobLauncherTestUtils.setJob(monthlyInterestsJob);
+        jobLauncherTestUtils.setJob(Objects.requireNonNull(monthlyInterestsJob));
 
         JobExecution execution = jobLauncherTestUtils.launchJob(
                 new JobParametersBuilder()
@@ -54,7 +56,7 @@ class TheMonthlyInterestsJobTest {
         );
 
         assertEquals(BatchStatus.COMPLETED, execution.getStatus());
-        assertEquals(7, accountBalanceWriter.written().size());
+        assertEquals(6, accountBalanceWriter.written().size());
     }
 
     @TestConfiguration

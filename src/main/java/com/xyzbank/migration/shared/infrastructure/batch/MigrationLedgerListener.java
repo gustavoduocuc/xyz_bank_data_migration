@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
-import org.springframework.batch.core.StepExecution;
+import org.springframework.lang.NonNull;
 
 public class MigrationLedgerListener implements JobExecutionListener {
 
@@ -19,7 +19,7 @@ public class MigrationLedgerListener implements JobExecutionListener {
     }
 
     @Override
-    public void afterJob(JobExecution jobExecution) {
+    public void afterJob(@NonNull JobExecution jobExecution) {
         String jobName = jobExecution.getJobInstance().getJobName();
 
         if (wasSkippedAsAlreadyMigrated(jobExecution)) {
@@ -53,13 +53,13 @@ public class MigrationLedgerListener implements JobExecutionListener {
 
     private int totalWriteCount(JobExecution jobExecution) {
         return (int) jobExecution.getStepExecutions().stream()
-                .mapToLong(StepExecution::getWriteCount)
+                .mapToLong(step -> step.getWriteCount())
                 .sum();
     }
 
     private int totalSkipCount(JobExecution jobExecution) {
         return (int) jobExecution.getStepExecutions().stream()
-                .mapToLong(StepExecution::getSkipCount)
+                .mapToLong(step -> step.getSkipCount())
                 .sum();
     }
 }

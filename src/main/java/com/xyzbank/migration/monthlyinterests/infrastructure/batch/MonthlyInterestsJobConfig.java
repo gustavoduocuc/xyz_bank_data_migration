@@ -4,28 +4,35 @@ import com.xyzbank.migration.monthlyinterests.application.ports.AccountBalanceWr
 import com.xyzbank.migration.monthlyinterests.domain.InterestApplied;
 import com.xyzbank.migration.monthlyinterests.infrastructure.adapters.JdbcAccountBalanceWriter;
 import com.xyzbank.migration.shared.application.ports.MigrationExecutionPort;
-import com.xyzbank.migration.shared.domain.DomainError;
+import com.xyzbank.migration.shared.infrastructure.batch.ChunkThroughputListener;
+import com.xyzbank.migration.shared.infrastructure.batch.DomainSkipPolicy;
 import com.xyzbank.migration.shared.infrastructure.batch.JobSummaryListener;
 import com.xyzbank.migration.shared.infrastructure.batch.LoggingSkipListener;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationGuardTasklet;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationLedgerListener;
+import com.xyzbank.migration.shared.infrastructure.batch.StepMetricsListener;
+import com.xyzbank.migration.shared.infrastructure.batch.TransientDataAccessRetryPolicy;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.FlatFileParseException;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
-import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.item.support.SynchronizedItemStreamReader;
+import org.springframework.batch.item.support.builder.SynchronizedItemStreamReaderBuilder;
+import org.springframework.batch.repeat.RepeatOperations;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
-import org.springframework.dao.TransientDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.lang.NonNull;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import java.util.Objects;
 
 @Configuration
 public class MonthlyInterestsJobConfig {
@@ -42,11 +49,21 @@ public class MonthlyInterestsJobConfig {
     ) {
         return new FlatFileItemReaderBuilder<InterestAccountLine>()
                 .name("monthlyInterestReader")
-                .resource(resource)
+                .resource(Objects.requireNonNull(resource))
                 .linesToSkip(1)
                 .delimited()
                 .names("cuentaId", "nombre", "saldo", "edad", "tipo")
                 .targetType(InterestAccountLine.class)
+                .build();
+    }
+
+    @Bean
+    @StepScope
+    public SynchronizedItemStreamReader<InterestAccountLine> synchronizedMonthlyInterestReader(
+            @NonNull FlatFileItemReader<InterestAccountLine> monthlyInterestReader
+    ) {
+        return new SynchronizedItemStreamReaderBuilder<InterestAccountLine>()
+                .delegate(Objects.requireNonNull(monthlyInterestReader))
                 .build();
     }
 
@@ -67,8 +84,11 @@ public class MonthlyInterestsJobConfig {
             PlatformTransactionManager transactionManager,
             MigrationExecutionPort migrationExecutionPort
     ) {
-        return new StepBuilder("checkMonthlyMigrationNotDone", jobRepository)
-                .tasklet(new MigrationGuardTasklet(migrationExecutionPort, "monthlyInterestsJob"), transactionManager)
+        return new StepBuilder("checkMonthlyMigrationNotDone", Objects.requireNonNull(jobRepository))
+                .tasklet(
+                        new MigrationGuardTasklet(migrationExecutionPort, "monthlyInterestsJob"),
+                        Objects.requireNonNull(transactionManager)
+                )
                 .build();
     }
 
@@ -76,23 +96,29 @@ public class MonthlyInterestsJobConfig {
     public Step calculateMonthlyInterests(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            FlatFileItemReader<InterestAccountLine> monthlyInterestReader,
+            SynchronizedItemStreamReader<InterestAccountLine> synchronizedMonthlyInterestReader,
             MonthlyInterestProcessor monthlyInterestProcessor,
-            AccountBalanceItemWriter accountBalanceItemWriter
+            AccountBalanceItemWriter accountBalanceItemWriter,
+            RepeatOperations batchStepOperations,
+            @Value("${migration.batch.chunk-size}") int chunkSize,
+            DomainSkipPolicy domainSkipPolicy,
+            TransientDataAccessRetryPolicy transientDataAccessRetryPolicy,
+            StepMetricsListener stepMetricsListener,
+            ChunkThroughputListener chunkThroughputListener
     ) {
-        return new StepBuilder("calculateMonthlyInterests", jobRepository)
-                .<InterestAccountLine, InterestApplied>chunk(10, transactionManager)
-                .reader(monthlyInterestReader)
-                .processor(monthlyInterestProcessor)
-                .writer(accountBalanceItemWriter)
+        return new StepBuilder("calculateMonthlyInterests", Objects.requireNonNull(jobRepository))
+                .<InterestAccountLine, InterestApplied>chunk(chunkSize, Objects.requireNonNull(transactionManager))
+                .reader(Objects.requireNonNull(synchronizedMonthlyInterestReader))
+                .processor(Objects.requireNonNull(monthlyInterestProcessor))
+                .writer(Objects.requireNonNull(accountBalanceItemWriter))
+                .stepOperations(Objects.requireNonNull(batchStepOperations))
                 .faultTolerant()
                 .processorNonTransactional()
-                .skip(DomainError.class)
-                .skip(FlatFileParseException.class)
-                .skipLimit(100)
-                .retry(TransientDataAccessException.class)
-                .retryLimit(3)
+                .skipPolicy(Objects.requireNonNull(domainSkipPolicy))
+                .retryPolicy(Objects.requireNonNull(transientDataAccessRetryPolicy))
                 .listener(new LoggingSkipListener<InterestAccountLine, InterestApplied>())
+                .listener(Objects.requireNonNull(stepMetricsListener))
+                .listener(Objects.requireNonNull(chunkThroughputListener))
                 .build();
     }
 
@@ -104,13 +130,13 @@ public class MonthlyInterestsJobConfig {
             JobSummaryListener jobSummaryListener,
             MigrationLedgerListener migrationLedgerListener
     ) {
-        return new JobBuilder("monthlyInterestsJob", jobRepository)
+        return new JobBuilder("monthlyInterestsJob", Objects.requireNonNull(jobRepository))
                 .incrementer(new RunIdIncrementer())
-                .listener(jobSummaryListener)
-                .listener(migrationLedgerListener)
-                .start(checkMonthlyMigrationNotDone)
+                .listener(Objects.requireNonNull(jobSummaryListener))
+                .listener(Objects.requireNonNull(migrationLedgerListener))
+                .start(Objects.requireNonNull(checkMonthlyMigrationNotDone))
                 .on(MigrationGuardTasklet.alreadyMigratedExitCode).end()
-                .from(checkMonthlyMigrationNotDone).on("*").to(calculateMonthlyInterests)
+                .from(checkMonthlyMigrationNotDone).on("*").to(Objects.requireNonNull(calculateMonthlyInterests))
                 .end()
                 .build();
     }

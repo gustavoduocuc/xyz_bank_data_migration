@@ -3,6 +3,7 @@ package com.xyzbank.migration.annualreports.infrastructure.batch;
 import com.xyzbank.migration.annualreports.domain.AnnualMovement;
 import com.xyzbank.migration.shared.domain.DomainError;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.lang.NonNull;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -12,7 +13,7 @@ public class AnnualMovementProcessor implements ItemProcessor<AnnualMovementLine
     private final Set<String> seenBusinessKeys = new HashSet<>();
 
     @Override
-    public AnnualMovement process(AnnualMovementLine line) {
+    public AnnualMovement process(@NonNull AnnualMovementLine line) {
         if (line.getMonto() == null) {
             throw DomainError.validation("Movement amount cannot be empty");
         }

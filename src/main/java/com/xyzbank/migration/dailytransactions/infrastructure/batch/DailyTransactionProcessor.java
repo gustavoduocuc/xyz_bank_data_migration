@@ -5,6 +5,7 @@ import com.xyzbank.migration.dailytransactions.domain.ProcessedTransaction;
 import com.xyzbank.migration.dailytransactions.domain.Transaction;
 import com.xyzbank.migration.shared.domain.DomainError;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.lang.NonNull;
 
 public class DailyTransactionProcessor implements ItemProcessor<DailyTransactionLine, ProcessedTransaction> {
 
@@ -15,7 +16,7 @@ public class DailyTransactionProcessor implements ItemProcessor<DailyTransaction
     }
 
     @Override
-    public ProcessedTransaction process(DailyTransactionLine line) {
+    public ProcessedTransaction process(@NonNull DailyTransactionLine line) {
         if (line.getMonto() == null) {
             throw DomainError.validation("Transaction amount cannot be empty");
         }
