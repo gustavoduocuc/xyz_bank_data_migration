@@ -12,7 +12,8 @@ public class LoggingSkipListener<T, S> implements SkipListener<T, S> {
     @Override
     public void onSkipInRead(@NonNull Throwable throwable) {
         logger.warn(
-                "Skipped during read exceptionType={} reason={}",
+                "Skipped during read thread={} exceptionType={} reason={}",
+                Thread.currentThread().getName(),
                 throwable.getClass().getSimpleName(),
                 throwable.getMessage()
         );
@@ -21,7 +22,8 @@ public class LoggingSkipListener<T, S> implements SkipListener<T, S> {
     @Override
     public void onSkipInProcess(@NonNull T item, @NonNull Throwable throwable) {
         logger.warn(
-                "Skipped during process exceptionType={} item={} reason={}",
+                "Skipped during process thread={} exceptionType={} item={} reason={}",
+                Thread.currentThread().getName(),
                 throwable.getClass().getSimpleName(),
                 item,
                 throwable.getMessage()
@@ -31,7 +33,8 @@ public class LoggingSkipListener<T, S> implements SkipListener<T, S> {
     @Override
     public void onSkipInWrite(@NonNull S item, @NonNull Throwable throwable) {
         logger.warn(
-                "Skipped during write exceptionType={} item={} reason={}",
+                "Skipped during write thread={} exceptionType={} item={} reason={}",
+                Thread.currentThread().getName(),
                 throwable.getClass().getSimpleName(),
                 item,
                 throwable.getMessage()
