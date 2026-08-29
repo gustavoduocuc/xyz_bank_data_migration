@@ -57,7 +57,9 @@ Si el job ya tiene `SUCCESS` en `migration_executions`, se omite el process (`AL
 | `migration.batch.skip-limit` | `100` | Tope de skips de dominio/parse |
 | `migration.batch.retry-limit` | `3` | Reintentos JDBC transitorios |
 
-Los process steps usan `SynchronizedItemStreamReader`, `DomainSkipPolicy`, `TransientDataAccessRetryPolicy`, y listeners de métricas (`Step metrics ... throughputPerSec`) para ajustar configuración mirando los logs.
+Los process steps usan **multithreading** (`SynchronizedItemStreamReader` + `TaskExecutorRepeatTemplate`), `DomainSkipPolicy`, `TransientDataAccessRetryPolicy`, `ExponentialBackOffPolicy` (1s ×2 hasta 10s) y listeners de métricas (`Step metrics ... throughputPerSec`). No hay particionado: MT cubre el requisito de escalado paralelo.
+
+Para comparar parámetros y elegir la config óptima, ver la tabla y checklist en [docs/jobs.md](docs/jobs.md#comparación-de-parámetros-configuración-óptima-local).
 
 ## Reglas de negocio
 
@@ -146,17 +148,17 @@ Conexión: `localhost:3306`, DB `xyz_bank_migration`, user/password `migration`/
 
 Por defecto `spring.batch.job.enabled=false`.
 
-### 4. Demo de performance (CSV sintético)
+### 4. Demo de performance (CSV sintético + comparación)
 
 ```bash
 python3 scripts/generate-performance-data.py
 
-# Linux / macOS
+# Comparar throttle-limit=1 vs 3 (revertir entre corridas)
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=performance \
-  -Dspring-boot.run.arguments="--spring.batch.job.enabled=true --spring.batch.job.name=dailyTransactionsJob"
+  -Dspring-boot.run.arguments="--spring.batch.job.enabled=true --spring.batch.job.name=dailyTransactionsJob --migration.batch.throttle-limit=1"
 ```
 
-Los CSV grandes viven en `data/performance/` (ignorados por git). En los logs buscá `Step metrics` y `Starting job=... chunkSize=... throttleLimit=...` para comparar rendimiento.
+Los CSV grandes viven en `data/performance/` (ignorados por git). En los logs buscá `Step metrics` y `Starting job=... chunkSize=... throttleLimit=...`. Detalle y tabla de comparación: [docs/jobs.md](docs/jobs.md#comparación-de-parámetros-configuración-óptima-local).
 
 ### 5. Ver reportes migrados
 

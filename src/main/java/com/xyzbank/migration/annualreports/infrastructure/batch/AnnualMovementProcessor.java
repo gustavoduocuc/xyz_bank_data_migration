@@ -5,12 +5,12 @@ import com.xyzbank.migration.shared.domain.DomainError;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.lang.NonNull;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AnnualMovementProcessor implements ItemProcessor<AnnualMovementLine, AnnualMovement> {
 
-    private final Set<String> seenBusinessKeys = new HashSet<>();
+    private final Set<String> seenBusinessKeys = ConcurrentHashMap.newKeySet();
 
     @Override
     public AnnualMovement process(@NonNull AnnualMovementLine line) {
@@ -34,10 +34,7 @@ public class AnnualMovementProcessor implements ItemProcessor<AnnualMovementLine
     }
 
     private boolean isDuplicateMovement(String businessKey) {
-        if (seenBusinessKeys.contains(businessKey)) {
-            return true;
-        }
-        seenBusinessKeys.add(businessKey);
-        return false;
+        boolean alreadySeen = !seenBusinessKeys.add(businessKey);
+        return alreadySeen;
     }
 }

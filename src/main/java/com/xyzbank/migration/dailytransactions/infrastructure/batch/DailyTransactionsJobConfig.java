@@ -31,6 +31,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.NonNull;
+import org.springframework.retry.backoff.BackOffPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.Objects;
@@ -110,6 +111,7 @@ public class DailyTransactionsJobConfig {
             @Value("${migration.batch.chunk-size}") int chunkSize,
             DomainSkipPolicy domainSkipPolicy,
             TransientDataAccessRetryPolicy transientDataAccessRetryPolicy,
+            BackOffPolicy transientDataAccessBackOffPolicy,
             StepMetricsListener stepMetricsListener,
             ChunkThroughputListener chunkThroughputListener
     ) {
@@ -123,6 +125,7 @@ public class DailyTransactionsJobConfig {
                 .processorNonTransactional()
                 .skipPolicy(Objects.requireNonNull(domainSkipPolicy))
                 .retryPolicy(Objects.requireNonNull(transientDataAccessRetryPolicy))
+                .backOffPolicy(Objects.requireNonNull(transientDataAccessBackOffPolicy))
                 .listener(new LoggingSkipListener<DailyTransactionLine, ProcessedTransaction>())
                 .listener(Objects.requireNonNull(stepMetricsListener))
                 .listener(Objects.requireNonNull(chunkThroughputListener))
