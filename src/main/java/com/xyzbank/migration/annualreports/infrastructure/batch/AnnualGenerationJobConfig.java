@@ -4,28 +4,35 @@ import com.xyzbank.migration.annualreports.application.ports.AnnualAuditWriter;
 import com.xyzbank.migration.annualreports.domain.AnnualMovement;
 import com.xyzbank.migration.annualreports.infrastructure.adapters.JdbcAnnualAuditWriter;
 import com.xyzbank.migration.shared.application.ports.MigrationExecutionPort;
-import com.xyzbank.migration.shared.domain.DomainError;
+import com.xyzbank.migration.shared.infrastructure.batch.ChunkThroughputListener;
+import com.xyzbank.migration.shared.infrastructure.batch.DomainSkipPolicy;
 import com.xyzbank.migration.shared.infrastructure.batch.JobSummaryListener;
 import com.xyzbank.migration.shared.infrastructure.batch.LoggingSkipListener;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationGuardTasklet;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationLedgerListener;
+import com.xyzbank.migration.shared.infrastructure.batch.StepMetricsListener;
+import com.xyzbank.migration.shared.infrastructure.batch.TransientDataAccessRetryPolicy;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.FlatFileParseException;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
-import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.item.support.SynchronizedItemStreamReader;
+import org.springframework.batch.item.support.builder.SynchronizedItemStreamReaderBuilder;
+import org.springframework.batch.repeat.RepeatOperations;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
-import org.springframework.dao.TransientDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.lang.NonNull;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import java.util.Objects;
 
 @Configuration
 public class AnnualGenerationJobConfig {
@@ -42,11 +49,21 @@ public class AnnualGenerationJobConfig {
     ) {
         return new FlatFileItemReaderBuilder<AnnualMovementLine>()
                 .name("annualMovementReader")
-                .resource(resource)
+                .resource(Objects.requireNonNull(resource))
                 .linesToSkip(1)
                 .delimited()
                 .names("cuentaId", "fecha", "transaccion", "monto", "descripcion")
                 .targetType(AnnualMovementLine.class)
+                .build();
+    }
+
+    @Bean
+    @StepScope
+    public SynchronizedItemStreamReader<AnnualMovementLine> synchronizedAnnualMovementReader(
+            @NonNull FlatFileItemReader<AnnualMovementLine> annualMovementReader
+    ) {
+        return new SynchronizedItemStreamReaderBuilder<AnnualMovementLine>()
+                .delegate(Objects.requireNonNull(annualMovementReader))
                 .build();
     }
 
@@ -68,8 +85,11 @@ public class AnnualGenerationJobConfig {
             PlatformTransactionManager transactionManager,
             MigrationExecutionPort migrationExecutionPort
     ) {
-        return new StepBuilder("checkAnnualMigrationNotDone", jobRepository)
-                .tasklet(new MigrationGuardTasklet(migrationExecutionPort, "annualGenerationJob"), transactionManager)
+        return new StepBuilder("checkAnnualMigrationNotDone", Objects.requireNonNull(jobRepository))
+                .tasklet(
+                        new MigrationGuardTasklet(migrationExecutionPort, "annualGenerationJob"),
+                        Objects.requireNonNull(transactionManager)
+                )
                 .build();
     }
 
@@ -77,23 +97,29 @@ public class AnnualGenerationJobConfig {
     public Step compileAnnualAudit(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            FlatFileItemReader<AnnualMovementLine> annualMovementReader,
+            SynchronizedItemStreamReader<AnnualMovementLine> synchronizedAnnualMovementReader,
             AnnualMovementProcessor annualMovementProcessor,
-            AnnualAuditItemWriter annualAuditItemWriter
+            AnnualAuditItemWriter annualAuditItemWriter,
+            RepeatOperations batchStepOperations,
+            @Value("${migration.batch.chunk-size}") int chunkSize,
+            DomainSkipPolicy domainSkipPolicy,
+            TransientDataAccessRetryPolicy transientDataAccessRetryPolicy,
+            StepMetricsListener stepMetricsListener,
+            ChunkThroughputListener chunkThroughputListener
     ) {
-        return new StepBuilder("compileAnnualAudit", jobRepository)
-                .<AnnualMovementLine, AnnualMovement>chunk(10, transactionManager)
-                .reader(annualMovementReader)
-                .processor(annualMovementProcessor)
-                .writer(annualAuditItemWriter)
+        return new StepBuilder("compileAnnualAudit", Objects.requireNonNull(jobRepository))
+                .<AnnualMovementLine, AnnualMovement>chunk(chunkSize, Objects.requireNonNull(transactionManager))
+                .reader(Objects.requireNonNull(synchronizedAnnualMovementReader))
+                .processor(Objects.requireNonNull(annualMovementProcessor))
+                .writer(Objects.requireNonNull(annualAuditItemWriter))
+                .stepOperations(Objects.requireNonNull(batchStepOperations))
                 .faultTolerant()
                 .processorNonTransactional()
-                .skip(DomainError.class)
-                .skip(FlatFileParseException.class)
-                .skipLimit(100)
-                .retry(TransientDataAccessException.class)
-                .retryLimit(3)
+                .skipPolicy(Objects.requireNonNull(domainSkipPolicy))
+                .retryPolicy(Objects.requireNonNull(transientDataAccessRetryPolicy))
                 .listener(new LoggingSkipListener<AnnualMovementLine, AnnualMovement>())
+                .listener(Objects.requireNonNull(stepMetricsListener))
+                .listener(Objects.requireNonNull(chunkThroughputListener))
                 .build();
     }
 
@@ -105,13 +131,13 @@ public class AnnualGenerationJobConfig {
             JobSummaryListener jobSummaryListener,
             MigrationLedgerListener migrationLedgerListener
     ) {
-        return new JobBuilder("annualGenerationJob", jobRepository)
+        return new JobBuilder("annualGenerationJob", Objects.requireNonNull(jobRepository))
                 .incrementer(new RunIdIncrementer())
-                .listener(jobSummaryListener)
-                .listener(migrationLedgerListener)
-                .start(checkAnnualMigrationNotDone)
+                .listener(Objects.requireNonNull(jobSummaryListener))
+                .listener(Objects.requireNonNull(migrationLedgerListener))
+                .start(Objects.requireNonNull(checkAnnualMigrationNotDone))
                 .on(MigrationGuardTasklet.alreadyMigratedExitCode).end()
-                .from(checkAnnualMigrationNotDone).on("*").to(compileAnnualAudit)
+                .from(checkAnnualMigrationNotDone).on("*").to(Objects.requireNonNull(compileAnnualAudit))
                 .end()
                 .build();
     }

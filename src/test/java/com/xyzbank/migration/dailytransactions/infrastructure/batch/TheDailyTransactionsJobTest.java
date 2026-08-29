@@ -1,7 +1,6 @@
 package com.xyzbank.migration.dailytransactions.infrastructure.batch;
 
 import com.xyzbank.migration.dailytransactions.application.ports.InMemoryDailyReportWriter;
-import com.xyzbank.migration.dailytransactions.domain.ProcessedTransaction;
 import com.xyzbank.migration.shared.application.ports.InMemoryMigrationExecutionPort;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationGuardTasklet;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +19,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.TestPropertySource;
 
+import java.util.Objects;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBatchTest
@@ -27,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestPropertySource(properties = {
         "spring.batch.job.enabled=false",
         "spring.main.allow-bean-definition-overriding=true",
-        "migration.data.daily-transactions=file:data/semana_1/transacciones.csv"
+        "migration.data.daily-transactions=file:data/semana_2/transacciones.csv"
 })
 class TheDailyTransactionsJobTest {
 
@@ -57,7 +58,7 @@ class TheDailyTransactionsJobTest {
 
     @Test
     void writesValidTransactionsAndOmitsInvalidOnes() throws Exception {
-        jobLauncherTestUtils.setJob(dailyTransactionsJob);
+        jobLauncherTestUtils.setJob(Objects.requireNonNull(dailyTransactionsJob));
 
         JobExecution execution = jobLauncherTestUtils.launchJob(
                 new JobParametersBuilder()
@@ -66,15 +67,15 @@ class TheDailyTransactionsJobTest {
         );
 
         assertEquals(BatchStatus.COMPLETED, execution.getStatus());
-        assertEquals(7, dailyReportWriter.written().size());
-        assertTrue(dailyReportWriter.written().stream().anyMatch(ProcessedTransaction::hasAnomaly));
+        assertEquals(6, dailyReportWriter.written().size());
+        assertTrue(dailyReportWriter.written().stream().anyMatch(transaction -> transaction.hasAnomaly()));
         assertTrue(migrationExecutionPort.hasSuccessfulExecution("dailyTransactionsJob"));
     }
 
     @Test
     void omitsProcessingWhenMigrationAlreadySucceeded() throws Exception {
-        migrationExecutionPort.markSuccess("dailyTransactionsJob", 7, 3);
-        jobLauncherTestUtils.setJob(dailyTransactionsJob);
+        migrationExecutionPort.markSuccess("dailyTransactionsJob", 6, 4);
+        jobLauncherTestUtils.setJob(Objects.requireNonNull(dailyTransactionsJob));
         int writtenBefore = dailyReportWriter.written().size();
 
         JobExecution execution = jobLauncherTestUtils.launchJob(

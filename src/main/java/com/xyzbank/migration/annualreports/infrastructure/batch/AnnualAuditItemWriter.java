@@ -8,6 +8,7 @@ import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemStream;
 import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.lang.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,30 +17,37 @@ public class AnnualAuditItemWriter implements ItemWriter<AnnualMovement>, ItemSt
 
     private final AnnualAuditWriter annualAuditWriter;
     private final List<AnnualMovement> bufferedMovements = new ArrayList<>();
+    private final Object bufferLock = new Object();
 
     public AnnualAuditItemWriter(AnnualAuditWriter annualAuditWriter) {
         this.annualAuditWriter = annualAuditWriter;
     }
 
     @Override
-    public void write(Chunk<? extends AnnualMovement> chunk) {
-        bufferedMovements.addAll(chunk.getItems());
+    public void write(@NonNull Chunk<? extends AnnualMovement> chunk) {
+        synchronized (bufferLock) {
+            bufferedMovements.addAll(chunk.getItems());
+        }
     }
 
     @Override
-    public void open(ExecutionContext executionContext) throws ItemStreamException {
+    public void open(@NonNull ExecutionContext executionContext) throws ItemStreamException {
     }
 
     @Override
-    public void update(ExecutionContext executionContext) throws ItemStreamException {
+    public void update(@NonNull ExecutionContext executionContext) throws ItemStreamException {
     }
 
     @Override
     public void close() throws ItemStreamException {
-        if (bufferedMovements.isEmpty()) {
-            return;
+        List<AnnualMovement> snapshot;
+        synchronized (bufferLock) {
+            if (bufferedMovements.isEmpty()) {
+                return;
+            }
+            snapshot = List.copyOf(bufferedMovements);
+            bufferedMovements.clear();
         }
-        annualAuditWriter.write(AnnualAccountCompiler.compile(bufferedMovements));
-        bufferedMovements.clear();
+        annualAuditWriter.write(AnnualAccountCompiler.compile(snapshot));
     }
 }

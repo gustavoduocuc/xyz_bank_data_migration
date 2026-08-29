@@ -4,6 +4,7 @@ import com.xyzbank.migration.dailytransactions.application.ports.DailyReportWrit
 import com.xyzbank.migration.dailytransactions.domain.ProcessedTransaction;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.lang.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +18,7 @@ public class DailyReportItemWriter implements ItemWriter<ProcessedTransaction> {
     }
 
     @Override
-    public void write(Chunk<? extends ProcessedTransaction> chunk) {
+    public void write(@NonNull Chunk<? extends ProcessedTransaction> chunk) {
         List<ProcessedTransaction> transactions = new ArrayList<>(chunk.getItems());
         dailyReportWriter.write(transactions);
     }

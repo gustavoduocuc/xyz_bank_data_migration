@@ -16,6 +16,11 @@ spring:
 
 migration:
   data:
-    daily-transactions: file:data/semana_1/transacciones.csv
-    monthly-interests: file:data/semana_1/intereses.csv
-    annual-accounts: file:data/semana_1/cuentas_anuales.csv
+    daily-transactions: file:data/semana_2/transacciones.csv
+    monthly-interests: file:data/semana_2/intereses.csv
+    annual-accounts: file:data/semana_2/cuentas_anuales.csv
+  batch:
+    chunk-size: 5
+    throttle-limit: 1
+    skip-limit: 100
+    retry-limit: 3

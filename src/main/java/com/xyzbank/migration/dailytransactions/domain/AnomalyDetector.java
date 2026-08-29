@@ -1,13 +1,13 @@
 package com.xyzbank.migration.dailytransactions.domain;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AnomalyDetector {
 
-    private final Set<String> seenBusinessKeys = new HashSet<>();
+    private final Set<String> seenBusinessKeys = ConcurrentHashMap.newKeySet();
 
     public ProcessedTransaction evaluate(Transaction transaction) {
         double highAmountThreshold = 2000;
@@ -28,10 +28,7 @@ public class AnomalyDetector {
     }
 
     private boolean isDuplicateBusinessKey(String businessKey) {
-        if (seenBusinessKeys.contains(businessKey)) {
-            return true;
-        }
-        seenBusinessKeys.add(businessKey);
-        return false;
+        boolean alreadySeen = !seenBusinessKeys.add(businessKey);
+        return alreadySeen;
     }
 }

@@ -17,6 +17,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.TestPropertySource;
 
+import java.util.Objects;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBatchTest
@@ -24,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestPropertySource(properties = {
         "spring.batch.job.enabled=false",
         "spring.main.allow-bean-definition-overriding=true",
-        "migration.data.annual-accounts=file:data/semana_1/cuentas_anuales.csv"
+        "migration.data.annual-accounts=file:data/semana_2/cuentas_anuales.csv"
 })
 class TheAnnualGenerationJobTest {
 
@@ -45,7 +47,7 @@ class TheAnnualGenerationJobTest {
 
     @Test
     void compilesAuditSummariesAndOmitsInvalidMovements() throws Exception {
-        jobLauncherTestUtils.setJob(annualGenerationJob);
+        jobLauncherTestUtils.setJob(Objects.requireNonNull(annualGenerationJob));
 
         JobExecution execution = jobLauncherTestUtils.launchJob(
                 new JobParametersBuilder()
