@@ -1,6 +1,6 @@
 # XYZ Bank Data Migration
 
-Migración de datos bancarios con **Spring Boot 3.5** y **Spring Batch 5**. Procesa los CSV de `data/semana_1` mediante tres jobs independientes (Reader → Processor → Writer), con persistencia JDBC en **MySQL**.
+Migración de datos bancarios con **Spring Boot 3.5** y **Spring Batch 5**. Procesa los CSV de `data/semana_2` mediante tres jobs independientes (Reader → Processor → Writer), con persistencia JDBC en **MySQL**, skip/retry personalizados y process steps multithread.
 
 Documentación ampliada:
 
@@ -47,6 +47,19 @@ src/main/java/com/xyzbank/migration/
 | `annualGenerationJob` | `checkAnnualMigrationNotDone` | `compileAnnualAudit` | `annual_audit_reports` |
 
 Si el job ya tiene `SUCCESS` en `migration_executions`, se omite el process (`ALREADY_MIGRATED`). Cada lanzamiento usa `RunIdIncrementer` para crear una nueva instancia Batch y consultar el ledger. Detalle en [docs/jobs.md](docs/jobs.md).
+
+## Escalado y resiliencia
+
+| Parámetro | Default | Descripción |
+|---|---|---|
+| `migration.batch.chunk-size` | `5` | Tamaño de chunk |
+| `migration.batch.throttle-limit` | `3` | Hilos del `TaskExecutor` en el process step |
+| `migration.batch.skip-limit` | `100` | Tope de skips de dominio/parse |
+| `migration.batch.retry-limit` | `3` | Reintentos JDBC transitorios |
+
+Los process steps usan **multithreading** (`SynchronizedItemStreamReader` + `TaskExecutorRepeatTemplate`), `DomainSkipPolicy`, `TransientDataAccessRetryPolicy`, `ExponentialBackOffPolicy` (1s ×2 hasta 10s) y listeners de métricas (`Step metrics ... throughputPerSec`). No hay particionado: MT cubre el requisito de escalado paralelo.
+
+Para comparar parámetros y elegir la config óptima, ver la tabla y checklist en [docs/jobs.md](docs/jobs.md#comparación-de-parámetros-configuración-óptima-local).
 
 ## Reglas de negocio
 
@@ -135,7 +148,19 @@ Conexión: `localhost:3306`, DB `xyz_bank_migration`, user/password `migration`/
 
 Por defecto `spring.batch.job.enabled=false`.
 
-### 4. Ver reportes migrados
+### 4. Demo de performance (CSV sintético + comparación)
+
+```bash
+python3 scripts/generate-performance-data.py
+
+# Comparar throttle-limit=1 vs 3 (revertir entre corridas)
+./mvnw spring-boot:run -Dspring-boot.run.profiles=performance \
+  -Dspring-boot.run.arguments="--spring.batch.job.enabled=true --spring.batch.job.name=dailyTransactionsJob --migration.batch.throttle-limit=1"
+```
+
+Los CSV grandes viven en `data/performance/` (ignorados por git). En los logs buscá `Step metrics` y `Starting job=... chunkSize=... throttleLimit=...`. Detalle y tabla de comparación: [docs/jobs.md](docs/jobs.md#comparación-de-parámetros-configuración-óptima-local).
+
+### 5. Ver reportes migrados
 
 ```bash
 docker compose exec mysql mysql -umigration -pmigration xyz_bank_migration -e "SELECT * FROM migration_executions; SELECT * FROM daily_transaction_reports LIMIT 10;"
@@ -157,8 +182,10 @@ Luego vuelve a ejecutar el job deseado. El script limpia tablas de negocio, `mig
 
 ## Datos de entrada
 
+Default: **semana_2**. También existen `data/semana_1` y CSVs sintéticos en `data/performance/` (generados).
+
 | Archivo | Job |
 |---|---|
-| [`data/semana_1/transacciones.csv`](data/semana_1/transacciones.csv) | dailyTransactionsJob |
-| [`data/semana_1/intereses.csv`](data/semana_1/intereses.csv) | monthlyInterestsJob |
-| [`data/semana_1/cuentas_anuales.csv`](data/semana_1/cuentas_anuales.csv) | annualGenerationJob |
+| [`data/semana_2/transacciones.csv`](data/semana_2/transacciones.csv) | dailyTransactionsJob |
+| [`data/semana_2/intereses.csv`](data/semana_2/intereses.csv) | monthlyInterestsJob |
+| [`data/semana_2/cuentas_anuales.csv`](data/semana_2/cuentas_anuales.csv) | annualGenerationJob |

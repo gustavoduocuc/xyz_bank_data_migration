@@ -8,3 +8,4 @@ target/
 *.log
 .vscode/
 docker-compose.override.yml
+data/performance/*.csv

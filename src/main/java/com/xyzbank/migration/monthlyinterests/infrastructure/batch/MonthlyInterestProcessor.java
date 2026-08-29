@@ -5,16 +5,17 @@ import com.xyzbank.migration.monthlyinterests.domain.InterestApplied;
 import com.xyzbank.migration.monthlyinterests.domain.InterestRatePolicy;
 import com.xyzbank.migration.shared.domain.DomainError;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.lang.NonNull;
 
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MonthlyInterestProcessor implements ItemProcessor<InterestAccountLine, InterestApplied> {
 
-    private final Set<String> seenAccountIds = new HashSet<>();
+    private final Set<String> seenAccountIds = ConcurrentHashMap.newKeySet();
 
     @Override
-    public InterestApplied process(InterestAccountLine line) {
+    public InterestApplied process(@NonNull InterestAccountLine line) {
         if (line.getSaldo() == null) {
             throw DomainError.validation("Account balance cannot be empty");
         }
@@ -38,10 +39,7 @@ public class MonthlyInterestProcessor implements ItemProcessor<InterestAccountLi
     }
 
     private boolean isDuplicateAccount(String accountId) {
-        if (seenAccountIds.contains(accountId)) {
-            return true;
-        }
-        seenAccountIds.add(accountId);
-        return false;
+        boolean alreadySeen = !seenAccountIds.add(accountId);
+        return alreadySeen;
     }
 }
