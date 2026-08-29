@@ -28,7 +28,7 @@ src/main/java/com/xyzbank/migration/
 │   ├── application/ports/      MigrationExecutionPort
 │   └── infrastructure/
 │       ├── adapters/           JdbcMigrationExecutionAdapter
-│       └── batch/              Guard, LedgerListener, summary
+│       └── batch/              Guard, ledger, skip/retry, CsvFieldNormalizer
 ├── dailytransactions/
 │   ├── application/ports/      DailyReportWriter
 │   └── infrastructure/
@@ -57,7 +57,9 @@ Si el job ya tiene `SUCCESS` en `migration_executions`, se omite el process (`AL
 | `migration.batch.skip-limit` | `100` | Tope de skips de dominio/parse |
 | `migration.batch.retry-limit` | `3` | Reintentos JDBC transitorios |
 
-Los process steps usan **multithreading** (`SynchronizedItemStreamReader` + `TaskExecutorRepeatTemplate`), `DomainSkipPolicy`, `TransientDataAccessRetryPolicy`, `ExponentialBackOffPolicy` (1s ×2 hasta 10s) y listeners de métricas (`Step metrics ... throughputPerSec`). No hay particionado: MT cubre el requisito de escalado paralelo.
+Los process steps usan **multithreading** (`SynchronizedItemStreamReader` + `TaskExecutorRepeatTemplate`), `DomainSkipPolicy`, `TransientDataAccessRetryPolicy`, `ExponentialBackOffPolicy` (1s ×2 hasta 10s), `LoggingRetryListener` (log INFO con `attempt` y `thread` en cada reintento JDBC) y listeners de métricas (`Step metrics ... throughputPerSec`). No hay particionado: MT cubre el requisito de escalado paralelo.
+
+Los readers normalizan el CSV con `CsvFieldNormalizer` (trim de texto/fechas, decimales `1500,50` / `1.500,50` / `1,500.50`, escala a 2 decimales). Si el monto no se puede corregir, se lanza `DomainError` y el ítem se omite.
 
 Para comparar parámetros y elegir la config óptima, ver la tabla y checklist en [docs/jobs.md](docs/jobs.md#comparación-de-parámetros-configuración-óptima-local).
 
@@ -72,7 +74,7 @@ Se omiten (`skip`) registros con:
 - campos obligatorios nulos
 - duplicados por `fecha + monto + tipo`
 
-Las anomalías (monto alto, duplicados detectados) se registran en el reporte sin bloquear la escritura cuando el registro es válido.
+La anomalía de monto alto (`HIGH_AMOUNT`) se registra en el reporte y el ítem se escribe. Los duplicados por business key (`fecha|monto|tipo`) lanzan `DomainError` y se omiten (`skip`) mediante `DomainSkipPolicy`.
 
 ### Intereses mensuales
 
@@ -103,6 +105,10 @@ Se omiten registros con:
 - duplicados
 
 Los retiros/compras con montos negativos son válidos. El writer consolida por `cuenta_id`.
+
+### Normalización de CSV
+
+Antes de persistir, los tres jobs recortan espacios en campos de texto/fecha y formatean montos a 2 decimales. Formatos inconsistentes se corrigen automáticamente cuando es posible; si el valor es inválido, se omite (`skip`).
 
 ## Requisitos previos
 

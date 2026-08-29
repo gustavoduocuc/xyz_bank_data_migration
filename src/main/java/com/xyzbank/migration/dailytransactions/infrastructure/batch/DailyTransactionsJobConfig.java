@@ -8,6 +8,7 @@ import com.xyzbank.migration.shared.application.ports.MigrationExecutionPort;
 import com.xyzbank.migration.shared.infrastructure.batch.ChunkThroughputListener;
 import com.xyzbank.migration.shared.infrastructure.batch.DomainSkipPolicy;
 import com.xyzbank.migration.shared.infrastructure.batch.JobSummaryListener;
+import com.xyzbank.migration.shared.infrastructure.batch.LoggingRetryListener;
 import com.xyzbank.migration.shared.infrastructure.batch.LoggingSkipListener;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationGuardTasklet;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationLedgerListener;
@@ -61,7 +62,7 @@ public class DailyTransactionsJobConfig {
                 .linesToSkip(1)
                 .delimited()
                 .names("id", "fecha", "monto", "tipo")
-                .targetType(DailyTransactionLine.class)
+                .fieldSetMapper(new DailyTransactionLineMapper())
                 .build();
     }
 
@@ -112,6 +113,7 @@ public class DailyTransactionsJobConfig {
             DomainSkipPolicy domainSkipPolicy,
             TransientDataAccessRetryPolicy transientDataAccessRetryPolicy,
             BackOffPolicy transientDataAccessBackOffPolicy,
+            LoggingRetryListener loggingRetryListener,
             StepMetricsListener stepMetricsListener,
             ChunkThroughputListener chunkThroughputListener
     ) {
@@ -126,6 +128,7 @@ public class DailyTransactionsJobConfig {
                 .skipPolicy(Objects.requireNonNull(domainSkipPolicy))
                 .retryPolicy(Objects.requireNonNull(transientDataAccessRetryPolicy))
                 .backOffPolicy(Objects.requireNonNull(transientDataAccessBackOffPolicy))
+                .listener(Objects.requireNonNull(loggingRetryListener))
                 .listener(new LoggingSkipListener<DailyTransactionLine, ProcessedTransaction>())
                 .listener(Objects.requireNonNull(stepMetricsListener))
                 .listener(Objects.requireNonNull(chunkThroughputListener))

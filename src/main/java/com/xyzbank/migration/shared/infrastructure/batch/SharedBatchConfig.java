@@ -57,6 +57,11 @@ public class SharedBatchConfig {
     }
 
     @Bean
+    public LoggingRetryListener loggingRetryListener() {
+        return new LoggingRetryListener();
+    }
+
+    @Bean
     public BackOffPolicy transientDataAccessBackOffPolicy() {
         long initialIntervalMs = 1000L;
         double multiplier = 2.0;

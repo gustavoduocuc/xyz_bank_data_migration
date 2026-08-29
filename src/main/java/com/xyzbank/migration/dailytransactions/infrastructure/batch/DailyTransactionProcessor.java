@@ -4,6 +4,7 @@ import com.xyzbank.migration.dailytransactions.domain.AnomalyDetector;
 import com.xyzbank.migration.dailytransactions.domain.ProcessedTransaction;
 import com.xyzbank.migration.dailytransactions.domain.Transaction;
 import com.xyzbank.migration.shared.domain.DomainError;
+import com.xyzbank.migration.shared.infrastructure.batch.CsvFieldNormalizer;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.lang.NonNull;
 
@@ -17,15 +18,16 @@ public class DailyTransactionProcessor implements ItemProcessor<DailyTransaction
 
     @Override
     public ProcessedTransaction process(@NonNull DailyTransactionLine line) {
-        if (line.getMonto() == null) {
+        Double amount = CsvFieldNormalizer.scaleAmount(line.getMonto());
+        if (amount == null) {
             throw DomainError.validation("Transaction amount cannot be empty");
         }
 
         Transaction transaction = Transaction.create(
-                line.getId(),
-                line.getFecha(),
-                line.getMonto(),
-                line.getTipo()
+                CsvFieldNormalizer.text(line.getId()),
+                CsvFieldNormalizer.text(line.getFecha()),
+                amount,
+                CsvFieldNormalizer.text(line.getTipo())
         );
         ProcessedTransaction processed = anomalyDetector.evaluate(transaction);
 
