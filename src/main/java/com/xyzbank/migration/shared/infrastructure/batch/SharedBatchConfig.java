@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.retry.backoff.BackOffPolicy;
+import org.springframework.retry.backoff.ExponentialBackOffPolicy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.Objects;
@@ -52,6 +54,18 @@ public class SharedBatchConfig {
             @Value("${migration.batch.retry-limit}") int retryLimit
     ) {
         return new TransientDataAccessRetryPolicy(retryLimit);
+    }
+
+    @Bean
+    public BackOffPolicy transientDataAccessBackOffPolicy() {
+        long initialIntervalMs = 1000L;
+        double multiplier = 2.0;
+        long maxIntervalMs = 10000L;
+        ExponentialBackOffPolicy backOffPolicy = new ExponentialBackOffPolicy();
+        backOffPolicy.setInitialInterval(initialIntervalMs);
+        backOffPolicy.setMultiplier(multiplier);
+        backOffPolicy.setMaxInterval(maxIntervalMs);
+        return backOffPolicy;
     }
 
     @Bean
