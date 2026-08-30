@@ -2,7 +2,7 @@ spring:
   application:
     name: xyz-bank-data-migration
   datasource:
-    url: jdbc:mysql://localhost:3307/xyz_bank_migration
+    url: jdbc:mysql://localhost:3306/xyz_bank_migration
     username: migration
     password: migration
     driver-class-name: com.mysql.cj.jdbc.Driver

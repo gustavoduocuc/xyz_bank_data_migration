@@ -1,4 +1,0 @@
-services:
-  mysql:
-    ports: !override
-      - "3307:3306"

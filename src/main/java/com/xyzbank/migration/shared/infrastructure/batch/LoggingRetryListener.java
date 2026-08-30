@@ -17,7 +17,7 @@ public class LoggingRetryListener implements RetryListener {
             Throwable throwable
     ) {
         logger.info(
-                "Retrying transient JDBC error attempt={} thread={} exceptionType={} reason={}",
+                "Transient JDBC error attempt={} thread={} exceptionType={} reason={}",
                 context.getRetryCount(),
                 Thread.currentThread().getName(),
                 throwable.getClass().getSimpleName(),

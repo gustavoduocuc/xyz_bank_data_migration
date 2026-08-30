@@ -6,6 +6,7 @@ Documentación ampliada:
 
 - [docs/jobs.md](docs/jobs.md) — diagramas y flujo de cada job
 - [docs/mysql.md](docs/mysql.md) — Docker MySQL, conexión y consultas de reportes
+- [docs/entrega/](docs/entrega/) — documentos de entrega del grupo
 
 ## Stack
 
