@@ -57,6 +57,9 @@ public final class CsvFieldNormalizer {
         return text.replace(" ", "").replace("\u00A0", "");
     }
 
+    // Convention: if both separators appear, the rightmost is the decimal mark.
+    // Comma alone with <=2 digits after is decimal (1500,50); more digits means thousands (1,500).
+    // Dot alone keeps Java/BigDecimal rules (1.500 => 1.50), so prefer explicit decimals in CSV.
     private static String toCanonicalDecimal(String compact) {
         int lastDot = compact.lastIndexOf('.');
         int lastComma = compact.lastIndexOf(',');

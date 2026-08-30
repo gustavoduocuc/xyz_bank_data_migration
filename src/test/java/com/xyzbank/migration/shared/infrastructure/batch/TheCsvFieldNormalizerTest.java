@@ -15,7 +15,8 @@ class TheCsvFieldNormalizerTest {
      * 1. Trims text and treats blank as null
      * 2. Parses amounts with spaces
      * 3. Parses comma decimals and mixed thousand separators
-     * 4. Rejects invalid amounts
+     * 4. Documents dot-only ambiguous amounts as BigDecimal decimals
+     * 5. Rejects invalid amounts
      */
 
     @Nested
@@ -38,6 +39,11 @@ class TheCsvFieldNormalizerTest {
             assertEquals(1500.50, CsvFieldNormalizer.amount("1500,50"));
             assertEquals(1500.50, CsvFieldNormalizer.amount("1.500,50"));
             assertEquals(1500.50, CsvFieldNormalizer.amount("1,500.50"));
+        }
+
+        @Test
+        void treatsDotOnlyAmbiguousAmountAsDecimal() {
+            assertEquals(1.50, CsvFieldNormalizer.amount("1.500"));
         }
 
         @Test

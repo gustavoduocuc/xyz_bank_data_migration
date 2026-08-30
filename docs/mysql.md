@@ -104,7 +104,7 @@ Eso vacía tablas de negocio, el ledger y (opcionalmente) metadatos Batch. Despu
 | Access denied | User/password `migration`/`migration` y DB `xyz_bank_migration` |
 | Tablas de negocio vacías / no existen | Volumen nuevo: `docker compose down -v && docker compose up -d` |
 | Job dice already migrated | Ver `migration_executions` o correr el script de revert |
-| Puerto 3306 ocupado | Parar otro MySQL local o cambiar el mapeo en `docker-compose.yml` |
+| Puerto 3306 ocupado | Parar otro MySQL local, o crear un `docker-compose.override.yml` local (gitignored) mapeando otro puerto host, p. ej. `3307:3306`, y apuntar JDBC a ese puerto |
 
 Detener:
 
