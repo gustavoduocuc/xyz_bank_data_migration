@@ -7,6 +7,7 @@ import com.xyzbank.migration.shared.application.ports.MigrationExecutionPort;
 import com.xyzbank.migration.shared.infrastructure.batch.ChunkThroughputListener;
 import com.xyzbank.migration.shared.infrastructure.batch.DomainSkipPolicy;
 import com.xyzbank.migration.shared.infrastructure.batch.JobSummaryListener;
+import com.xyzbank.migration.shared.infrastructure.batch.LoggingRetryListener;
 import com.xyzbank.migration.shared.infrastructure.batch.LoggingSkipListener;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationGuardTasklet;
 import com.xyzbank.migration.shared.infrastructure.batch.MigrationLedgerListener;
@@ -54,7 +55,7 @@ public class MonthlyInterestsJobConfig {
                 .linesToSkip(1)
                 .delimited()
                 .names("cuentaId", "nombre", "saldo", "edad", "tipo")
-                .targetType(InterestAccountLine.class)
+                .fieldSetMapper(new InterestAccountLineMapper())
                 .build();
     }
 
@@ -105,6 +106,7 @@ public class MonthlyInterestsJobConfig {
             DomainSkipPolicy domainSkipPolicy,
             TransientDataAccessRetryPolicy transientDataAccessRetryPolicy,
             BackOffPolicy transientDataAccessBackOffPolicy,
+            LoggingRetryListener loggingRetryListener,
             StepMetricsListener stepMetricsListener,
             ChunkThroughputListener chunkThroughputListener
     ) {
@@ -119,6 +121,7 @@ public class MonthlyInterestsJobConfig {
                 .skipPolicy(Objects.requireNonNull(domainSkipPolicy))
                 .retryPolicy(Objects.requireNonNull(transientDataAccessRetryPolicy))
                 .backOffPolicy(Objects.requireNonNull(transientDataAccessBackOffPolicy))
+                .listener(Objects.requireNonNull(loggingRetryListener))
                 .listener(new LoggingSkipListener<InterestAccountLine, InterestApplied>())
                 .listener(Objects.requireNonNull(stepMetricsListener))
                 .listener(Objects.requireNonNull(chunkThroughputListener))

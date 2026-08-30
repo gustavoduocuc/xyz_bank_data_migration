@@ -48,6 +48,13 @@ class TheMonthlyInterestProcessorTest {
             assertThrows(DomainError.class, () -> processor.process(line("101", "John Doe", 5000.0, 30, "ahorro")));
         }
 
+        @Test
+        void acceptsPaddedTextFields() {
+            InterestApplied applied = processor.process(line(" 101 ", " John Doe ", 5000.0, 30, " ahorro "));
+
+            assertEquals(0.01, applied.rate());
+        }
+
         private InterestAccountLine line(String id, String name, Double balance, Integer age, String type) {
             InterestAccountLine line = new InterestAccountLine();
             line.setCuentaId(id);

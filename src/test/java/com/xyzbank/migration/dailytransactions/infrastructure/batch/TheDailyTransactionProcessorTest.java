@@ -62,6 +62,13 @@ class TheDailyTransactionProcessorTest {
             assertFalse(processed.isDuplicate());
         }
 
+        @Test
+        void acceptsPaddedTextFields() {
+            ProcessedTransaction processed = processor.process(line(" 1 ", " 2024-01-01 ", 1000.0, " debito "));
+
+            assertEquals("1", processed.idValue());
+        }
+
         private DailyTransactionLine line(String id, String fecha, Double monto, String tipo) {
             DailyTransactionLine line = new DailyTransactionLine();
             line.setId(id);

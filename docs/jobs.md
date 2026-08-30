@@ -59,7 +59,7 @@ BackOff fijo en código: `ExponentialBackOffPolicy` (initial 1000 ms, multiplier
 | Puerto | `DailyReportWriter` → `JdbcDailyReportWriter` |
 | Tabla | `daily_transaction_reports` |
 
-Procesa transacciones, detecta anomalías (monto alto, duplicados) y omite montos no positivos. `AnomalyDetector` usa set concurrente para multithreading.
+Procesa transacciones, registra la anomalía `HIGH_AMOUNT` en el reporte y omite montos no positivos. Los duplicados por business key (`fecha|monto|tipo`) lanzan `DomainError` y se omiten (`skip`). `AnomalyDetector` usa set concurrente para multithreading.
 
 ## monthlyInterestsJob
 
@@ -89,6 +89,7 @@ El writer Batch acumula movimientos de **todos** los chunks (buffer sincronizado
 - **RetryPolicy** `TransientDataAccessRetryPolicy`: solo `TransientDataAccessException`
 - **BackOffPolicy** `ExponentialBackOffPolicy`: 1s → ×2 → tope 10s entre retries
 - **SkipListener**: log WARN con `thread=`, fase, tipo de excepción e item
+- **RetryListener** `LoggingRetryListener`: log INFO con `attempt`, `thread`, tipo de excepción y motivo en cada reintento JDBC transitorio
 - **StepMetricsListener**: duración y throughput por step
 - **JobSummaryListener**: duración del job + `chunkSize` / `throttleLimit` al inicio
 - **ChunkThroughputListener**: DEBUG por chunk (nombre de thread)

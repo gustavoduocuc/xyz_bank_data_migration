@@ -49,6 +49,14 @@ class TheAnnualMovementProcessorTest {
                     () -> processor.process(line("101", "2024-01-01", "deposito", 1000.0, "Ingreso mensual")));
         }
 
+        @Test
+        void acceptsPaddedTextFields() {
+            AnnualMovement movement = processor.process(line(" 101 ", " 2024-01-01 ", " deposito ", 1000.0, " Ingreso mensual "));
+
+            assertEquals(MovementType.DEPOSIT, movement.type());
+            assertEquals("101", movement.accountIdValue());
+        }
+
         private AnnualMovementLine line(String accountId, String date, String type, Double amount, String description) {
             AnnualMovementLine line = new AnnualMovementLine();
             line.setCuentaId(accountId);

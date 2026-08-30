@@ -4,6 +4,7 @@ import com.xyzbank.migration.monthlyinterests.domain.Account;
 import com.xyzbank.migration.monthlyinterests.domain.InterestApplied;
 import com.xyzbank.migration.monthlyinterests.domain.InterestRatePolicy;
 import com.xyzbank.migration.shared.domain.DomainError;
+import com.xyzbank.migration.shared.infrastructure.batch.CsvFieldNormalizer;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.lang.NonNull;
 
@@ -16,7 +17,8 @@ public class MonthlyInterestProcessor implements ItemProcessor<InterestAccountLi
 
     @Override
     public InterestApplied process(@NonNull InterestAccountLine line) {
-        if (line.getSaldo() == null) {
+        Double balance = CsvFieldNormalizer.scaleAmount(line.getSaldo());
+        if (balance == null) {
             throw DomainError.validation("Account balance cannot be empty");
         }
         if (line.getEdad() == null) {
@@ -24,11 +26,11 @@ public class MonthlyInterestProcessor implements ItemProcessor<InterestAccountLi
         }
 
         Account account = Account.create(
-                line.getCuentaId(),
-                line.getNombre(),
-                line.getSaldo(),
+                CsvFieldNormalizer.text(line.getCuentaId()),
+                CsvFieldNormalizer.text(line.getNombre()),
+                balance,
                 line.getEdad(),
-                line.getTipo()
+                CsvFieldNormalizer.text(line.getTipo())
         );
 
         if (isDuplicateAccount(account.idValue())) {
