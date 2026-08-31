@@ -7,8 +7,10 @@ import java.util.Objects;
 
 public final class BusinessDate {
 
-    private static final DateTimeFormatter DASH = DateTimeFormatter.ISO_LOCAL_DATE;
-    private static final DateTimeFormatter SLASH = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+    private static final DateTimeFormatter ISO_DASH = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter ISO_SLASH = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+    private static final DateTimeFormatter DAY_FIRST_DASH = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+    private static final DateTimeFormatter DAY_FIRST_SLASH = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final LocalDate value;
 
@@ -22,13 +24,26 @@ public final class BusinessDate {
         }
         String normalized = raw.trim();
         try {
-            if (normalized.contains("/")) {
-                return new BusinessDate(LocalDate.parse(normalized, SLASH));
-            }
-            return new BusinessDate(LocalDate.parse(normalized, DASH));
+            return new BusinessDate(parse(normalized));
         } catch (DateTimeParseException exception) {
             throw DomainError.validation("Invalid date format: " + raw);
         }
+    }
+
+    private static LocalDate parse(String normalized) {
+        if (normalized.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            return LocalDate.parse(normalized, ISO_DASH);
+        }
+        if (normalized.matches("\\d{4}/\\d{2}/\\d{2}")) {
+            return LocalDate.parse(normalized, ISO_SLASH);
+        }
+        if (normalized.matches("\\d{2}-\\d{2}-\\d{4}")) {
+            return LocalDate.parse(normalized, DAY_FIRST_DASH);
+        }
+        if (normalized.matches("\\d{2}/\\d{2}/\\d{4}")) {
+            return LocalDate.parse(normalized, DAY_FIRST_SLASH);
+        }
+        throw DomainError.validation("Invalid date format: " + normalized);
     }
 
     public LocalDate value() {
@@ -36,7 +51,7 @@ public final class BusinessDate {
     }
 
     public String asIso() {
-        return value.format(DASH);
+        return value.format(ISO_DASH);
     }
 
     @Override

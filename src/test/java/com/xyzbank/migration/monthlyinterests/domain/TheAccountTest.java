@@ -17,8 +17,9 @@ class TheAccountTest {
      * 3. Does not allow negative balance
      * 4. Does not allow age outside range
      * 5. Does not allow unknown account type
-     * 6. Does not allow empty name
-     * 7. Considers senior account from age threshold
+     * 6. Accepts accented loan type
+     * 7. Does not allow empty name
+     * 8. Considers senior account from age threshold
      */
 
     @Nested
@@ -54,6 +55,15 @@ class TheAccountTest {
         @Test
         void doesNotAllowUnknownAccountType() {
             assertThrows(DomainError.class, () -> Account.create("101", "John Doe", 5000, 30, "corriente"));
+            assertThrows(DomainError.class, () -> Account.create("101", "John Doe", 5000, 30, "-1"));
+            assertThrows(DomainError.class, () -> Account.create("101", "John Doe", 5000, 30, "unknown"));
+        }
+
+        @Test
+        void acceptsAccentedLoanType() {
+            Account account = Account.create("102", "Jane Smith", 7000, 40, "préstamo");
+
+            assertEquals(AccountType.LOAN, account.type());
         }
 
         @Test

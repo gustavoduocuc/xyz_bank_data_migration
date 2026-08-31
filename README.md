@@ -1,6 +1,6 @@
 # XYZ Bank Data Migration
 
-Migración de datos bancarios con **Spring Boot 3.5** y **Spring Batch 5**. Procesa los CSV de `data/semana_2` mediante tres jobs independientes (Reader → Processor → Writer), con persistencia JDBC en **MySQL**, skip/retry personalizados y process steps multithread.
+Migración de datos bancarios con **Spring Boot 3.5** y **Spring Batch 5**. Procesa los CSV de `data/semana_3` mediante tres jobs independientes (Reader → Processor → Writer), con persistencia JDBC en **MySQL**, skip/retry personalizados y process steps multithread.
 
 Documentación ampliada:
 
@@ -55,7 +55,7 @@ Si el job ya tiene `SUCCESS` en `migration_executions`, se omite el process (`AL
 |---|---|---|
 | `migration.batch.chunk-size` | `5` | Tamaño de chunk |
 | `migration.batch.throttle-limit` | `3` | Hilos del `TaskExecutor` en el process step |
-| `migration.batch.skip-limit` | `100` | Tope de skips de dominio/parse |
+| `migration.batch.skip-limit` | `2000` | Tope de skips de dominio/parse |
 | `migration.batch.retry-limit` | `3` | Reintentos JDBC transitorios |
 
 Los process steps usan **multithreading** (`SynchronizedItemStreamReader` + `TaskExecutorRepeatTemplate`), `DomainSkipPolicy`, `TransientDataAccessRetryPolicy`, `ExponentialBackOffPolicy` (1s ×2 hasta 10s), `LoggingRetryListener` (log INFO con `attempt` y `thread` en cada reintento JDBC) y listeners de métricas (`Step metrics ... throughputPerSec`). No hay particionado: MT cubre el requisito de escalado paralelo.
@@ -68,26 +68,29 @@ Para comparar parámetros y elegir la config óptima, ver la tabla y checklist e
 
 ### Transacciones diarias
 
-Se omiten (`skip`) registros con:
+Catálogo cerrado de `tipo`: solo `debito`/`débito` y `credito`/`crédito`. Valores como `invalid` o `desconocido` se omiten (`skip`); no se reinterpretan.
 
-- `monto <= 0`
-- tipo inválido
-- campos obligatorios nulos
-- duplicados por `fecha + monto + tipo`
+También se omiten:
 
-La anomalía de monto alto (`HIGH_AMOUNT`) se registra en el reporte y el ítem se escribe. Los duplicados por business key (`fecha|monto|tipo`) lanzan `DomainError` y se omiten (`skip`) mediante `DomainSkipPolicy`.
+- `monto` vacío o `<= 0`
+- `fecha` inválida
+- `id` vacío
+- duplicados por business key (`fecha|monto|tipo`) en el mismo run
+
+La anomalía de monto alto (`HIGH_AMOUNT`, monto > 2000) se registra en el reporte y el ítem se escribe. Los duplicados lanzan `DomainError` y se omiten (`skip`) mediante `DomainSkipPolicy`.
 
 ### Intereses mensuales
 
-Se omiten registros con:
+Catálogo cerrado de `tipo`: solo `ahorro`, `prestamo`/`préstamo` e `hipoteca`. Valores como `-1` o `unknown` se omiten (`skip`); no se reinterpretan como producto con tasa.
 
-- `saldo <= 0`
-- edad fuera del rango 18–100
-- tipo inválido
-- campos nulos
-- `cuenta_id` duplicado
+También se omiten:
 
-Tasas inferidas:
+- `saldo` vacío o `<= 0`
+- `edad` vacía o fuera del rango 18–100
+- `nombre` vacío
+- `cuenta_id` vacío o duplicado en el mismo run
+
+Tasas:
 
 | Tipo | Condición | Tasa |
 |---|---|---|
@@ -98,18 +101,20 @@ Tasas inferidas:
 
 ### Auditoría anual
 
-Se omiten registros con:
+Catálogo cerrado de `transaccion`: solo `deposito`/`depósito`, `retiro` y `compra`. Otros valores (p. ej. `pago`) se omiten (`skip`); no se reinterpretan.
+
+También se omiten:
 
 - depósito con `monto == 0`
-- tipo inválido
-- campos nulos
+- campos nulos / monto vacío
+- fechas inválidas
 - duplicados
 
-Los retiros/compras con montos negativos son válidos. El writer consolida por `cuenta_id`.
+Los retiros/compras con montos negativos son válidos. El writer consolida **una fila por `cuenta_id`** en `annual_audit_reports` (no una por línea del CSV).
 
 ### Normalización de CSV
 
-Antes de persistir, los tres jobs recortan espacios en campos de texto/fecha y formatean montos a 2 decimales. Formatos inconsistentes se corrigen automáticamente cuando es posible; si el valor es inválido, se omite (`skip`).
+Antes de persistir, los tres jobs recortan espacios en campos de texto/fecha y formatean montos a 2 decimales. Formatos inconsistentes se corrigen automáticamente cuando es posible; si el valor es inválido, se omite (`skip`). Los catálogos de tipo (diario, mensual y anual) normalizan tildes (`débito` → `debito`, `préstamo` → `prestamo`, `depósito` → `deposito`).
 
 ## Requisitos previos
 
@@ -189,10 +194,12 @@ Luego vuelve a ejecutar el job deseado. El script limpia tablas de negocio, `mig
 
 ## Datos de entrada
 
-Default: **semana_2**. También existen `data/semana_1` y CSVs sintéticos en `data/performance/` (generados).
+Default: **semana_3** (~1000 filas por CSV, con ruido intencional). También existen `data/semana_1`, `data/semana_2` y CSVs sintéticos en `data/performance/` (generados). Los tests unitarios de job siguen usando `semana_2`.
 
 | Archivo | Job |
 |---|---|
-| [`data/semana_2/transacciones.csv`](data/semana_2/transacciones.csv) | dailyTransactionsJob |
-| [`data/semana_2/intereses.csv`](data/semana_2/intereses.csv) | monthlyInterestsJob |
-| [`data/semana_2/cuentas_anuales.csv`](data/semana_2/cuentas_anuales.csv) | annualGenerationJob |
+| [`data/semana_3/transacciones.csv`](data/semana_3/transacciones.csv) | dailyTransactionsJob |
+| [`data/semana_3/intereses.csv`](data/semana_3/intereses.csv) | monthlyInterestsJob |
+| [`data/semana_3/cuentas_anuales.csv`](data/semana_3/cuentas_anuales.csv) | annualGenerationJob |
+
+Fechas aceptadas: `yyyy-MM-dd`, `yyyy/MM/dd`, `dd-MM-yyyy`, `dd/MM/yyyy`. `skip-limit` por defecto es `2000` para absorber el ruido de semana_3.
