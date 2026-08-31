@@ -15,10 +15,11 @@ class TheTransactionTest {
      * 2. Creates valid credit transaction
      * 3. Normalizes slash date format
      * 4. Does not allow non-positive amount
-     * 5. Does not allow unknown transaction type
-     * 6. Does not allow empty id
-     * 7. Does not allow empty date
-     * 8. Shares business key for same date amount and type
+     * 5. Does not allow unknown transaction type (invalid, desconocido)
+     * 6. Accepts accented debit and credit types
+     * 7. Does not allow empty id
+     * 8. Does not allow empty date
+     * 9. Shares business key for same date amount and type
      */
 
     @Nested
@@ -56,7 +57,23 @@ class TheTransactionTest {
 
         @Test
         void doesNotAllowUnknownTransactionType() {
-            assertThrows(DomainError.class, () -> Transaction.create("1", "2024-01-01", 1000, "transfer"));
+            DomainError transfer = assertThrows(
+                    DomainError.class,
+                    () -> Transaction.create("1", "2024-01-01", 1000, "transfer")
+            );
+            assertTrue(transfer.getMessage().contains("allowed: debito, credito"));
+
+            assertThrows(DomainError.class, () -> Transaction.create("1", "2024-01-01", 1000, "invalid"));
+            assertThrows(DomainError.class, () -> Transaction.create("1", "2024-01-01", 1000, "desconocido"));
+        }
+
+        @Test
+        void acceptsAccentedDebitAndCreditTypes() {
+            Transaction debit = Transaction.create("1", "2024-01-01", 1000, "débito");
+            Transaction credit = Transaction.create("2", "2024-01-02", 1500, "crédito");
+
+            assertEquals(TransactionType.DEBIT, debit.type());
+            assertEquals(TransactionType.CREDIT, credit.type());
         }
 
         @Test

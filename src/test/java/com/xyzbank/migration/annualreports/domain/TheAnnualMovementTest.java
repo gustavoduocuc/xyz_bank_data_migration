@@ -12,11 +12,12 @@ class TheAnnualMovementTest {
     /*
      * Cases:
      * 1. Creates valid deposit
-     * 2. Creates valid withdrawal with negative amount
-     * 3. Creates valid purchase with negative amount
-     * 4. Does not allow zero deposit
-     * 5. Does not allow unknown movement type
-     * 6. Normalizes slash date
+     * 2. Creates valid deposit with accented type
+     * 3. Creates valid withdrawal with negative amount
+     * 4. Creates valid purchase with negative amount
+     * 5. Does not allow zero deposit
+     * 6. Does not allow unknown movement type
+     * 7. Normalizes slash date
      */
 
     @Nested
@@ -28,6 +29,14 @@ class TheAnnualMovementTest {
 
             assertEquals(MovementType.DEPOSIT, movement.type());
             assertEquals(Money.create(1000), movement.amount());
+            assertTrue(movement.isDeposit());
+        }
+
+        @Test
+        void createsValidDepositWithAccentedType() {
+            AnnualMovement movement = AnnualMovement.create("102", "2024/09/30", "depósito", 2000, "Ingreso");
+
+            assertEquals(MovementType.DEPOSIT, movement.type());
             assertTrue(movement.isDeposit());
         }
 

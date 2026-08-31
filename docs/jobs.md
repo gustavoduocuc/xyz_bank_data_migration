@@ -44,7 +44,7 @@ Parámetros en `application.yml`:
 |---|---|---|
 | `migration.batch.chunk-size` | 5 | Tamaño de chunk |
 | `migration.batch.throttle-limit` | 3 | `corePoolSize` / `maxPoolSize` / `queueCapacity` del `TaskExecutor` |
-| `migration.batch.skip-limit` | 100 | Máximo de skips de dominio/parse |
+| `migration.batch.skip-limit` | 2000 | Máximo de skips de dominio/parse |
 | `migration.batch.retry-limit` | 3 | Reintentos de errores transitorios JDBC |
 
 BackOff fijo en código: `ExponentialBackOffPolicy` (initial 1000 ms, multiplier 2.0, max 10000 ms) entre reintentos JDBC.
@@ -53,35 +53,76 @@ BackOff fijo en código: `ExponentialBackOffPolicy` (initial 1000 ms, multiplier
 
 | Elemento | Valor |
 |---|---|
-| CSV | `data/semana_2/transacciones.csv` (default) |
+| CSV | `data/semana_3/transacciones.csv` (default) |
 | Guard | `checkDailyMigrationNotDone` |
 | Process | `processDailyTransactions` |
 | Puerto | `DailyReportWriter` → `JdbcDailyReportWriter` |
 | Tabla | `daily_transaction_reports` |
 
-Procesa transacciones, registra la anomalía `HIGH_AMOUNT` en el reporte y omite montos no positivos. Los duplicados por business key (`fecha|monto|tipo`) lanzan `DomainError` y se omiten (`skip`). `AnomalyDetector` usa set concurrente para multithreading.
+### Catálogo de tipos de transacción (regla de negocio)
+
+Solo se aceptan estos valores de `tipo` (trim, minúsculas y **sin tildes**: p. ej. `débito` ≡ `debito`, `crédito` ≡ `credito`):
+
+| Valor en CSV | Dominio |
+|---|---|
+| `debito` / `débito` | `DEBIT` |
+| `credito` / `crédito` | `CREDIT` |
+
+Cualquier otro valor (p. ej. `invalid`, `desconocido`) es **tipo desconocido** → `DomainError` → skip. No se reinterpretan sentinels ni placeholders.
+
+Otras omisiones: `monto` vacío o ≤ 0, `fecha` inválida (p. ej. mes 13), `id` vacío, duplicados por business key (`fecha|monto|tipo`) en el mismo run.
+
+La anomalía `HIGH_AMOUNT` (monto > 2000) se registra en el reporte y el ítem **sí se escribe**. `AnomalyDetector` usa set concurrente para multithreading.
 
 ## monthlyInterestsJob
 
 | Elemento | Valor |
 |---|---|
-| CSV | `data/semana_2/intereses.csv` |
+| CSV | `data/semana_3/intereses.csv` |
 | Guard | `checkMonthlyMigrationNotDone` |
 | Process | `calculateMonthlyInterests` |
 | Puerto | `AccountBalanceWriter` → `JdbcAccountBalanceWriter` |
 | Tabla | `account_balances` |
 
+### Catálogo de tipos de cuenta (regla de negocio)
+
+Solo se calculan intereses para estos valores de `tipo` (trim, minúsculas y **sin tildes**: p. ej. `préstamo` ≡ `prestamo`):
+
+| Valor en CSV | Dominio | Tasa |
+|---|---|---|
+| `ahorro` | `SAVINGS` | 1.00% si edad menor a 65; 1.50% si edad 65 o más |
+| `prestamo` / `préstamo` | `LOAN` | 1.50% |
+| `hipoteca` | `MORTGAGE` | 0.80% |
+
+Cualquier otro valor (p. ej. `-1`, `unknown`) es **tipo desconocido** → `DomainError` → skip. No se reinterpretan sentinels ni placeholders como productos con tasa.
+
+Otras omisiones: `saldo` vacío o ≤ 0, `edad` vacía o fuera de 18–100, `nombre` vacío, `cuenta_id` vacío o duplicado en el mismo run.
+
 ## annualGenerationJob
 
 | Elemento | Valor |
 |---|---|
-| CSV | `data/semana_2/cuentas_anuales.csv` |
+| CSV | `data/semana_3/cuentas_anuales.csv` |
 | Guard | `checkAnnualMigrationNotDone` |
 | Process | `compileAnnualAudit` |
 | Puerto | `AnnualAuditWriter` → `JdbcAnnualAuditWriter` |
 | Tabla | `annual_audit_reports` |
 
 El writer Batch acumula movimientos de **todos** los chunks (buffer sincronizado) y consolida por `cuenta_id` vía `AnnualAccountCompiler` al cerrar el step. El processor deduplica con `ConcurrentHashMap.newKeySet()` (thread-safe bajo MT).
+
+### Catálogo de tipos de movimiento (regla de negocio)
+
+Solo se consolidan estos valores de `transaccion` (trim, minúsculas y **sin tildes**: p. ej. `depósito` ≡ `deposito`):
+
+| Valor en CSV | Dominio | Notas |
+|---|---|---|
+| `deposito` / `depósito` | `DEPOSIT` | Monto `0` → skip |
+| `retiro` | `WITHDRAWAL` | Montos negativos o positivos permitidos |
+| `compra` | `PURCHASE` | Montos negativos o positivos permitidos |
+
+Cualquier otro valor (p. ej. `pago`, `transfer`, vacío) es **tipo desconocido** → `DomainError` → skip. No hay mapeo de `pago` a retiro/compra: el catálogo del reporte anual es cerrado a esos tres tipos.
+
+Otras omisiones: monto vacío/inválido, fecha inválida, `cuenta_id` vacío, duplicados por business key.
 
 ## Skip / retry / listeners
 

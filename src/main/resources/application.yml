@@ -17,13 +17,13 @@ spring:
 
 migration:
   data:
-    daily-transactions: file:data/semana_2/transacciones.csv
-    monthly-interests: file:data/semana_2/intereses.csv
-    annual-accounts: file:data/semana_2/cuentas_anuales.csv
+    daily-transactions: file:data/semana_3/transacciones.csv
+    monthly-interests: file:data/semana_3/intereses.csv
+    annual-accounts: file:data/semana_3/cuentas_anuales.csv
   batch:
     chunk-size: 5
     throttle-limit: 3
-    skip-limit: 100
+    skip-limit: 2000
     retry-limit: 3
 
 logging:

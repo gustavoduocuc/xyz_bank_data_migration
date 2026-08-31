@@ -14,8 +14,10 @@ class TheAnnualMovementProcessorTest {
     /*
      * Cases:
      * 1. Accepts valid movement
-     * 2. Does not allow zero deposit
-     * 3. Does not allow duplicate movement
+     * 2. Accepts accented deposit type
+     * 3. Does not allow zero deposit
+     * 4. Does not allow duplicate movement
+     * 5. Accepts padded text fields
      */
 
     @Nested
@@ -31,6 +33,13 @@ class TheAnnualMovementProcessorTest {
         @Test
         void acceptsValidMovement() {
             AnnualMovement movement = processor.process(line("101", "2024-01-01", "deposito", 1000.0, "Ingreso mensual"));
+
+            assertEquals(MovementType.DEPOSIT, movement.type());
+        }
+
+        @Test
+        void acceptsAccentedDepositType() {
+            AnnualMovement movement = processor.process(line("102", "2024/09/30", "depósito", 2000.0, "Ingreso"));
 
             assertEquals(MovementType.DEPOSIT, movement.type());
         }
